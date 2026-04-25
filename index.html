@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信用卡回饋</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-2 sm:p-4 md:p-8">
+
+    <div id="app" class="max-w-7xl mx-auto">
+        <div class="bg-white rounded-t-xl shadow-md p-4 sm:p-6">
+            
+            <div class="mb-6">
+                <h1 class="text-2xl sm:text-3xl font-bold text-black mb-1">💳 刷哪張最划算？</h1>
+                <p class="text-gray-500 text-xs sm:text-sm">輸入地點或選擇分類，找出最高回饋</p>
+            </div>
+
+            <div class="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="text-sm font-bold text-blue-800">✅ 我擁有的卡片：</p>
+                    <button @click="toggleAllCards" class="text-xs text-blue-600 hover:text-blue-800 underline">
+                        {{ ownedCards.length === allCards.length ? '全不選' : '全選' }}
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 sm:gap-3">
+                    <label v-for="cardName in allCards" :key="cardName" 
+                        class="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg shadow-sm cursor-pointer hover:bg-gray-50 border transition-colors"
+                        :class="ownedCards.includes(cardName) ? 'border-blue-400' : 'border-gray-200'">
+                        <input type="checkbox" :value="cardName" v-model="ownedCards" 
+                            class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                        <span class="text-sm font-medium" :class="ownedCards.includes(cardName) ? 'text-blue-700' : 'text-gray-500'">
+                            {{ cardName }}
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex bg-gray-100 p-1 rounded-lg mb-6 shadow-inner">
+                <button @click="setRegion('domestic')"
+                    :class="region === 'domestic' ? 'bg-white shadow-sm text-blue-700 border border-gray-200' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 py-2.5 text-sm sm:text-base font-bold rounded-md transition-all">
+                    🇹🇼 國內消費
+                </button>
+                <button @click="setRegion('overseas')"
+                    :class="region === 'overseas' ? 'bg-white shadow-sm text-blue-700 border border-gray-200' : 'text-gray-500 hover:text-gray-700'"
+                    class="flex-1 py-2.5 text-sm sm:text-base font-bold rounded-md transition-all">
+                    ✈️ 日本 / 國外消費
+                </button>
+            </div>
+            
+            <div class="relative mb-6">
+                <input type="text" v-model="searchQuery" 
+                    class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm sm:text-base bg-white"
+                    :placeholder="region === 'domestic' ? '輸入國內地點（如：7-11、全聯、星巴克）...' : '輸入國家或外幣（如：日本、韓國、Suica）...'">
+                <button v-if="searchQuery" @click="searchQuery = ''; activeCategory = null" 
+                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-xs text-gray-500 mb-3 font-semibold">📂 {{ region === 'domestic' ? '國內分類' : '國外分類' }}：</p>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="activeCategory = null"
+                        class="px-3 py-1.5 text-xs sm:text-sm rounded-full transition border font-medium"
+                        :class="activeCategory === null ? 'bg-blue-500 text-white border-blue-500 shadow-sm' : 'bg-gray-100 text-gray-700 border-gray-200 hover:border-blue-300'">
+                        全部
+                    </button>
+                    <button v-for="cat in currentCategories" :key="cat"
+                        @click="activeCategory = cat"
+                        class="px-3 py-1.5 text-xs sm:text-sm rounded-full transition border font-medium"
+                        :class="activeCategory === cat ? 'bg-blue-500 text-white border-blue-500 shadow-sm' : 'bg-gray-100 text-gray-700 border-gray-200 hover:border-blue-300'">
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="displayedLocations.length > 0" class="mb-2">
+                <p class="text-xs text-gray-500 mb-2 font-semibold">🎯 熱門關鍵字：</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    <button v-for="location in displayedLocations" :key="location"
+                        @click="searchQuery = location; activeCategory = null"
+                        class="px-3 py-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition border border-blue-200 font-medium truncate text-center">
+                        {{ location }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white shadow-md">
+            <div v-if="ownedCards.length > 0 && filteredCards.length > 0" class="border-b border-gray-200 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-transparent">
+                <p class="text-gray-600 text-xs sm:text-sm">為您找到 <span class="font-bold text-blue-600">{{ filteredCards.length }}</span> 張適合的卡片</p>
+            </div>
+
+            <div class="p-4 sm:p-6 space-y-4">
+                <div v-if="ownedCards.length === 0" class="text-center bg-gray-50 rounded-lg py-10 px-4 border border-gray-200">
+                    <p class="text-gray-500 mb-2 text-lg">🪪 您尚未勾選任何擁有的卡片</p>
+                    <p class="text-sm text-gray-400">請在上方勾選您持有的卡片，我們才能幫您計算回饋喔！</p>
+                </div>
+
+                <div v-else-if="filteredCards.length === 0" class="text-center bg-gray-50 rounded-lg py-10 px-4 border border-gray-200">
+                    <p class="text-gray-500 mb-2 text-lg">🔍 找不到符合條件的卡片</p>
+                    <p class="text-sm text-gray-400">您可以嘗試更換搜尋關鍵字，或是勾選更多卡片。</p>
+                </div>
+
+                <div v-else class="space-y-4">
+                    <div v-for="(card, index) in filteredCards" :key="card.parentCard + card.cardName" 
+                         class="p-4 border border-blue-100 bg-blue-50 rounded-lg shadow-sm hover:shadow-md transition">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div class="flex items-start gap-3 flex-1 w-full">
+                                <div class="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mt-1 sm:mt-0">
+                                    <span class="text-white font-bold text-sm">{{ index + 1 }}</span>
+                                </div>
+                                <div class="flex-1">
+                                    <h2 class="text-base sm:text-lg font-bold text-blue-800">{{ card.bank }} {{ card.cardName }}</h2>
+                                    <p class="text-xs sm:text-sm text-gray-600 mt-1 leading-relaxed">{{ card.condition }}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="text-left sm:text-right flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-blue-200 pt-3 sm:pt-0 mt-2 sm:mt-0 flex sm:block justify-end items-center">
+                                <p class="text-3xl font-extrabold text-red-500">{{ card.rewardRate }}<span class="text-xl">%</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-100 rounded-b-xl p-4 sm:p-6 text-xs text-gray-500 border-t border-gray-200">
+            <p>💡 溫馨提示：回饋率根據該地點的權益而定，實際回饋可能因消費方式（實體刷卡/行動支付）、是否需登錄活動而有所不同。詳細規範請依各銀行官網公告為準。</p>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        createApp({
+            setup() {
+                // ===== 狀態管理 =====
+                const searchQuery = ref('');
+                const activeCategory = ref(null);
+                const region = ref('domestic'); // 'domestic' 國內 | 'overseas' 國外
+
+                // ===== 銀行卡片勾選管理 =====
+                const allCards = ['中信 uniopen聯名卡', '聯邦 賴點卡', '聯邦 吉鶴卡', '國泰 CUBE卡', '台新 Richart卡'];
+                const ownedCards = ref([...allCards]); // 預設全選
+
+                const toggleAllCards = () => {
+                    if (ownedCards.value.length === allCards.length) {
+                        ownedCards.value = []; // 全不選
+                    } else {
+                        ownedCards.value = [...allCards]; // 全選
+                    }
+                };
+
+                const setRegion = (newRegion) => {
+                    region.value = newRegion;
+                    searchQuery.value = '';
+                    activeCategory.value = null;
+                };
+
+                // ===== 分類 & 地點庫 =====
+                // 將「航空票務」和「訂房旅遊」移至國內分類
+                const categoriesDomestic = ['超商', '百貨', '餐飲', '日系名店', '網購', '國內交通', '航空票務', '訂房旅遊', '娛樂串流', '藥妝', '金融服務'];
+                const categoriesOverseas = ['日本實體', '海外一般'];
+                
+                const locationsByCategory = {
+                    // 國內
+                    '超商': ['7-11', '全家', '家樂福', '屈臣氏', '康是美', '寶雅', '中油', '萊爾富', '大買家', '唐吉軻德', 'LOPIA', '全聯'],
+                    '百貨': ['新光三越', 'SOGO', '遠東百貨', 'IKEA', '台北101', '微風廣場', '誠品生活', '京站', '美麗華', '遠東巨城', '漢神百貨', '南紡購物中心', '夢時代', 'SKM Park', 'MITSUI Outlet Park', 'HOLA', '特力屋'],
+                    '餐飲': ['王品', '星巴克', 'Uber Eats', 'Foodpanda', '晶華酒店', '錢櫃', '好樂迪', '麥當勞', '肯德基', '摩斯漢堡', '漢堡王', '春水堂', '壽司郎', '爭鮮', '八方雲集', '海底撈', '築間', '漢來美食', '涮乃葉', '勝博殿', '一風堂', 'YAYOI彌生軒', 'Mo-Mo-Paradise', '路易莎', 'CAMA', '50嵐', '得正', '麻古茶坊'],
+                    '日系名店': ['UNIQLO', 'GU', '大創', '日藥本舖', '松本清', '三友藥妝', 'LOFT', '宜得利', 'GLOBAL WORK', 'niko and', '思夢樂', 'TSUTAYA'],
+                    '網購': ['蝦皮', 'momo', 'PChome', 'Coupang', '東森', '博客來'],
+                    '國內交通': ['高鐵', 'Uber', '台灣大車隊', 'yoxi', 'iRent', '和運租車', '格上租車', '臺鐵'],
+                    '航空票務': ['中華航空', '長榮航空', '國泰航空', '星宇航空', '台灣虎航', '樂桃航空', '日本航空', 'ANA全日空'],
+                    '訂房旅遊': ['Agoda', 'Booking', 'Trip.com', 'Klook', 'KKday', 'Airbnb', '雄獅旅遊', 'Expedia', 'Hotels.com'],
+                    '娛樂串流': ['Netflix', 'Spotify', 'Google Play', 'Apple', 'Disney+', 'YouTube Premium', 'Max', 'ChatGPT', 'Claude', 'Notion', 'Canva', 'PlayStation', 'Nintendo', 'Steam', 'MyCard', 'Hahow'],
+                    '藥妝': ['屈臣氏', '康是美', '寶雅', '大樹藥局', '丁丁藥局', '躍獅藥局', '松本清', 'Tomod\'s'],
+                    '金融服務': ['保費', '繳稅', '繳費', '一卡通', 'iPASS'],
+                    // 國外
+                    '日本實體': ['日本', '日幣', 'Suica', 'BIC CAMERA', '唐吉軻德', '大丸百貨', '東京迪士尼', '大阪環球影城', 'Lawson'],
+                    '海外一般': ['海外消費', '韓國', '泰國', '越南', '菲律賓', '歐洲', '國外', 'Amazon', '淘寶']
+                };
+
+                // 根據當前地區決定要顯示的分類清單
+                const currentCategories = computed(() => {
+                    const cats = region.value === 'domestic' ? categoriesDomestic : categoriesOverseas;
+                    // 過濾掉空資料的分類
+                    return cats.filter(cat => locationsByCategory[cat] && locationsByCategory[cat].length > 0);
+                });
+
+                const displayedLocations = computed(() => {
+                    if (activeCategory.value === null) return [];
+                    return locationsByCategory[activeCategory.value] || [];
+                });
+
+                // ===== 信用卡資料庫 =====
+                const creditCardData = [
+                    // 中信銀行 uniopen聯名卡
+                    { bank: "中信", parentCard: "中信 uniopen聯名卡", cardName: "uniopen聯名卡 (集團最高)", rewardRate: 11.0, keywords: ["家樂福", "家樂福錢包", "7-11", "711", "星巴克", "康是美", "聖德科斯", "夢時代", "統一時代", "博客來", "icash pay", "openpoint", "foodomo", "統一集團"], condition: "統一集團品牌消費最優11% (含踩點加碼及家樂福錢包)" },
+                    { bank: "中信", parentCard: "中信 uniopen聯名卡", cardName: "uniopen聯名卡 (海外最高)", rewardRate: 11.0, keywords: ["海外消費", "日本", "韓國", "泰國", "越南", "菲律賓", "實體商店", "國外"], condition: "國外實體商店最優11% (基本3%+日韓泰越菲加碼8%)" },
+                    { bank: "中信", parentCard: "中信 uniopen聯名卡", cardName: "uniopen聯名卡 (國內一般)", rewardRate: 1.0, keywords: ["國內", "一般消費"], condition: "國內一般消費享 1% OPENPOINT回饋無上限" },
+
+                    // 聯邦銀行 賴點卡
+                    { bank: "聯邦", parentCard: "聯邦 賴點卡", cardName: "賴點卡 (LINE Pay)", rewardRate: 11.0, keywords: ["line pay", "國內line pay", "王品", "海底撈", "築間", "春水堂", "壽司郎", "麥當勞", "星巴克", "路易莎", "50嵐", "麻古茶坊", "屈臣氏", "寶雅", "大樹", "ikea", "迪卡儂"], condition: "國內LINE Pay指定通路最優11% (需登錄或特定日)" },
+                    { bank: "聯邦", parentCard: "聯邦 賴點卡", cardName: "賴點卡 (萊爾富)", rewardRate: 5.0, keywords: ["萊爾富", "hi-life", "超商", "現折"], condition: "萊爾富超商實體門市天天不限金額現折5%" },
+                    { bank: "聯邦", parentCard: "聯邦 賴點卡", cardName: "賴點卡 (一卡通)", rewardRate: 2.0, keywords: ["一卡通", "自動加值", "ipass money"], condition: "一卡通全通路自動加值每筆贈10元iPASS儲值金" },
+                    { bank: "聯邦", parentCard: "聯邦 賴點卡", cardName: "賴點卡 (國外)", rewardRate: 2.68, keywords: ["國外", "海外消費", "歐洲", "amazon", "淘寶"], condition: "國外消費享最優 2.68% 回饋無上限" },
+                    { bank: "聯邦", parentCard: "聯邦 賴點卡", cardName: "賴點卡 (國內)", rewardRate: 1.68, keywords: ["國內", "一般消費", "保費"], condition: "國內基本消費最優 1.68% 回饋無上限 (保費1%無上限)" },
+                    
+                    // 聯邦銀行 吉鶴卡
+                    { bank: "聯邦", parentCard: "聯邦 吉鶴卡", cardName: "吉鶴卡 (日本旅遊祭)", rewardRate: 11.0, keywords: ["日本", "日幣", "suica", "東京迪士尼", "大阪環球影城", "7-eleven", "familymart", "lawson", "bic camera", "唐吉軻德"], condition: "日本旅遊祭：日幣消費最高11% (含各項加碼)" },
+                    { bank: "聯邦", parentCard: "聯邦 吉鶴卡", cardName: "吉鶴卡 (日系名店)", rewardRate: 5.5, keywords: ["大創", "日藥本舖", "松本清", "tomod's", "tsutaya bookstore", "uniqlo", "gu", "思夢樂"], condition: "國內指定日系名店：最高5.5%" },
+                    { bank: "聯邦", parentCard: "聯邦 吉鶴卡", cardName: "吉鶴卡 (日系餐廳)", rewardRate: 10.0, keywords: ["涮乃葉", "勝博殿", "欣葉日本料理", "吉豚屋", "一風堂", "yayoi彌生軒", "屯京拉麵", "mo-mo-paradise", "金子半之助"], condition: "週一至週五國內精選日系餐廳現場折抵最高10%" },
+                    { bank: "聯邦", parentCard: "聯邦 吉鶴卡", cardName: "吉鶴卡 (一般)", rewardRate: 1.0, keywords: ["國內", "一般消費", "全聯", "百貨"], condition: "國內一般消費享 1% 回饋無上限" },
+
+                    // 國泰 CUBE 卡
+                    { bank: "國泰", parentCard: "國泰 CUBE卡", cardName: "CUBE卡 (樂饗購)", rewardRate: 3.0, keywords: ["新光三越", "遠東sogo", "遠東百貨", "台北101", "微風廣場", "誠品生活", "京站", "美麗華", "遠東巨城", "夢時代", "mitsui outlet park", "uber eats", "foodpanda", "麥當勞", "康是美", "屈臣氏"], condition: "國內指定百貨/外送平台/連鎖速食/藥妝 享 3%" },
+                    { bank: "國泰", parentCard: "國泰 CUBE卡", cardName: "CUBE卡 (玩數位)", rewardRate: 3.0, keywords: ["chatgpt", "canva", "claude", "apple媒體服務", "google play", "disney+", "netflix", "spotify", "youtube premium", "蝦皮購物", "momo購物網", "pchome 24h購物", "coupang 酷澎", "淘寶", "網購"], condition: "AI工具/數位串流平台/網購平台 享 3%" },
+                    { bank: "國泰", parentCard: "國泰 CUBE卡", cardName: "CUBE卡 (趣旅行)", rewardRate: 3.0, keywords: ["海外消費", "suica", "uber", "台灣高鐵", "yoxi", "台灣大車隊", "irent", "中華航空", "長榮航空", "星宇航空", "kkday", "klook", "agoda", "airbnb", "booking", "trip.com", "雄獅旅遊"], condition: "海外消費/指定交通/航空公司/飯店住宿/訂房平台/旅行社 享 3%" },
+                    { bank: "國泰", parentCard: "國泰 CUBE卡", cardName: "CUBE卡 (集精選)", rewardRate: 2.0, keywords: ["家樂福", "lopia", "全聯福利中心", "中油", "7-eleven", "7-11", "全家便利商店", "ikea宜家家居"], condition: "充電站/停車費/量販超市/加油/超商/家居 享 2%" },
+                    { bank: "國泰", parentCard: "國泰 CUBE卡", cardName: "CUBE卡 (日本賞)", rewardRate: 8.0, keywords: ["mitsui outlet park", "bic camera", "suica", "星巴克", "loft", "日本"], condition: "日本指定消費最優 8%" },
+
+                    // 台新 Richart
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (Pay著刷)", rewardRate: 3.8, keywords: ["新光三越", "skm pay", "四大超商", "7-11", "711", "全家", "ikea", "康是美", "台新pay", "line pay"], condition: "台新Pay/LINE Pay 綁定支付享最高 3.8%" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (天天刷)", rewardRate: 3.3, keywords: ["7-11", "711", "全家", "家樂福", "大買家", "唐吉軻德", "lopia", "臺鐵", "高鐵", "台灣大車隊", "yoxi", "uber", "中油", "寶雅", "屈臣氏", "大樹藥局"], condition: "超商量販/通勤交通/加油充電/藥妝藥局 享 3.3% (超商限台新Pay)" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (大筆刷)", rewardRate: 3.3, keywords: ["新光三越", "sogo", "遠東百貨", "微風", "台北101", "遠東巨城", "夢時代", "mitsui", "outlet", "ikea", "特力屋", "hola", "uniqlo", "gu", "zara"], condition: "指定百貨/Outlet/居家裝修/時尚品味 享 3.3%" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (好饗刷)", rewardRate: 3.3, keywords: ["餐飲", "王品", "uber eats", "foodpanda", "拓元售票", "晶華", "萬豪", "老爺酒店", "漢來飯店", "錢櫃", "好樂迪"], condition: "全台餐飲/外送平台/購票娛樂/指定飯店/KTV 享 3.3%" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (數趣刷)", rewardRate: 3.3, keywords: ["蝦皮", "momo", "coupang", "淘寶", "pchome", "netflix", "disney+", "chatgpt", "notion", "canva", "claude", "steam", "playstation", "nintendo", "hahow"], condition: "網購平台/線上課程/遊戲影音/AI工具 享 3.3%" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (玩旅刷)", rewardRate: 3.3, keywords: ["海外消費", "uber", "suica", "中華航空", "長榮航空", "星宇航空", "klook", "agoda", "booking", "trip", "airbnb", "雄獅旅遊"], condition: "海外消費/交通/航空/訂房平台/旅行社 享 3.3%" },
+                    { bank: "台新", parentCard: "台新 Richart卡", cardName: "Richart (假日刷)", rewardRate: 2.0, keywords: ["節假日", "國定假日"], condition: "國內節假日不限通路消費享 2% (含 LINE Pay 綁定)" }
+                ];
+
+                // ===== 過濾 & 排序 =====
+                const filteredCards = computed(() => {
+                    // 先依據勾選的卡片全名 (parentCard) 進行初步篩選
+                    const baseCards = creditCardData.filter(card => ownedCards.value.includes(card.parentCard));
+                    
+                    let term = searchQuery.value.trim().toLowerCase();
+                    const categoryLocations = activeCategory.value ? locationsByCategory[activeCategory.value] : [];
+
+                    // 預設顯示所有選定卡片
+                    if (!term && !activeCategory.value) {
+                        return baseCards.sort((a, b) => b.rewardRate - a.rewardRate);
+                    }
+
+                    // 過濾出符合條件的卡片
+                    const matched = [];
+                    
+                    for (const card of baseCards) {
+                        let isMatch = false;
+
+                        if (term) {
+                            let normalizedTerm = term.replace(/711/g, '7-11');
+                            isMatch = card.keywords.some(keyword => {
+                                let normalizedKeyword = keyword.toLowerCase().replace(/711/g, '7-11');
+                                return normalizedKeyword.includes(normalizedTerm);
+                            });
+                        }
+                        else if (activeCategory.value) {
+                            isMatch = card.keywords.some(keyword => {
+                                const lowerKeyword = keyword.toLowerCase();
+                                return categoryLocations.some(loc => lowerKeyword.includes(loc.toLowerCase()));
+                            });
+                        }
+
+                        if (isMatch) {
+                            matched.push(card);
+                        }
+                    }
+
+                    return matched.sort((a, b) => b.rewardRate - a.rewardRate);
+                });
+
+                return {
+                    searchQuery,
+                    filteredCards,
+                    activeCategory,
+                    currentCategories,
+                    displayedLocations,
+                    allCards,
+                    ownedCards,
+                    toggleAllCards,
+                    region,
+                    setRegion
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
